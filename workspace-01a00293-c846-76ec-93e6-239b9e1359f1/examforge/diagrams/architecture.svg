@@ -1,0 +1,167 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1520" height="1157" viewBox="0 0 1520 1157" font-family="Inter,Segoe UI,Helvetica,Arial,sans-serif">
+<rect width="1520" height="1157" fill="#0f1420"/>
+<defs><marker id="ar" markerWidth="9" markerHeight="9" refX="7.5" refY="3" orient="auto"><path d="M0,0 L8,3 L0,6 z" fill="#6f8ab5"/></marker></defs>
+<text x="34" y="38" fill="#eaf0fb" font-size="25" font-weight="700">ExamForge — System Architecture</text>
+<text x="1486" y="38" fill="#7f8ea8" font-size="13" text-anchor="end">Curriculum-grounded exam authoring for primary schools · backend-driven · auth out of scope</text>
+<rect x="30" y="64" width="1460" height="91" rx="10" fill="#1b2740" stroke="#3d5a8a" stroke-width="1.5"/>
+<text x="46" y="83" fill="#dbe6f7" font-size="14" font-weight="700">CLIENTS</text>
+<text x="1474" y="83" fill="#8fa3c4" font-size="11" text-anchor="end">thin views over server state</text>
+<rect x="46.0" y="90" width="466.7" height="53" rx="7" fill="#0c1220" stroke="#3d5a8a" stroke-opacity="0.8"/>
+<text x="279.3" y="106" fill="#e8f0fc" font-size="11.6" font-weight="600" text-anchor="middle">Teacher Web App</text>
+<text x="279.3" y="122" fill="#93a6c4" font-size="10" text-anchor="middle">chapter picker · pool curation</text>
+<text x="279.3" y="135" fill="#93a6c4" font-size="10" text-anchor="middle">exam builder · preview</text>
+<rect x="526.7" y="90" width="466.7" height="53" rx="7" fill="#0c1220" stroke="#3d5a8a" stroke-opacity="0.8"/>
+<text x="760.0" y="106" fill="#e8f0fc" font-size="11.6" font-weight="600" text-anchor="middle">Admin Console</text>
+<text x="760.0" y="122" fill="#93a6c4" font-size="10" text-anchor="middle">textbook ingestion</text>
+<text x="760.0" y="135" fill="#93a6c4" font-size="10" text-anchor="middle">human review gate</text>
+<rect x="1007.3" y="90" width="466.7" height="53" rx="7" fill="#0c1220" stroke="#3d5a8a" stroke-opacity="0.8"/>
+<text x="1240.7" y="106" fill="#e8f0fc" font-size="11.6" font-weight="600" text-anchor="middle">Public API clients</text>
+<text x="1240.7" y="122" fill="#93a6c4" font-size="10" text-anchor="middle">API-first: every UI action</text>
+<text x="1240.7" y="135" fill="#93a6c4" font-size="10" text-anchor="middle">is a documented route</text>
+<rect x="30" y="189" width="1460" height="91" rx="10" fill="#1b2b33" stroke="#3f7d8c" stroke-width="1.5"/>
+<text x="46" y="208" fill="#dbe6f7" font-size="14" font-weight="700">EDGE</text>
+<rect x="46.0" y="215" width="1428.0" height="53" rx="7" fill="#0c1220" stroke="#3f7d8c" stroke-opacity="0.8"/>
+<text x="760.0" y="231" fill="#e8f0fc" font-size="11.6" font-weight="600" text-anchor="middle">API Gateway</text>
+<text x="760.0" y="247" fill="#93a6c4" font-size="10" text-anchor="middle">rate limit · request-id · CORS · quotas</text>
+<text x="760.0" y="260" fill="#93a6c4" font-size="10" text-anchor="middle">[AUTH-LATER] injects X-Teacher-Id (stubbed today)</text>
+<rect x="30" y="314" width="1460" height="106" rx="10" fill="#17253a" stroke="#4a7bb7" stroke-width="1.5"/>
+<text x="46" y="333" fill="#dbe6f7" font-size="14" font-weight="700">APPLICATION — FastAPI (stateless, horizontally scaled)</text>
+<text x="1474" y="333" fill="#8fa3c4" font-size="11" text-anchor="end">routers stay thin: validate → one service call → serialise</text>
+<rect x="46.0" y="340" width="192.0" height="68" rx="7" fill="#0c1220" stroke="#4a7bb7" stroke-opacity="0.8"/>
+<text x="142.0" y="356" fill="#e8f0fc" font-size="11.6" font-weight="600" text-anchor="middle">Curriculum</text>
+<text x="142.0" y="370" fill="#e8f0fc" font-size="11.6" font-weight="600" text-anchor="middle">Service</text>
+<text x="142.0" y="386" fill="#93a6c4" font-size="10" text-anchor="middle">tree · nodes</text>
+<text x="142.0" y="399" fill="#93a6c4" font-size="10" text-anchor="middle">objectives · coverage</text>
+<rect x="252.0" y="340" width="192.0" height="68" rx="7" fill="#0c1220" stroke="#4a7bb7" stroke-opacity="0.8"/>
+<text x="348.0" y="356" fill="#e8f0fc" font-size="11.6" font-weight="600" text-anchor="middle">Source</text>
+<text x="348.0" y="370" fill="#e8f0fc" font-size="11.6" font-weight="600" text-anchor="middle">Service</text>
+<text x="348.0" y="386" fill="#93a6c4" font-size="10" text-anchor="middle">upload · parse</text>
+<text x="348.0" y="399" fill="#93a6c4" font-size="10" text-anchor="middle">chunk · embed</text>
+<rect x="458.0" y="340" width="192.0" height="68" rx="7" fill="#0c1220" stroke="#4a7bb7" stroke-opacity="0.8"/>
+<text x="554.0" y="356" fill="#e8f0fc" font-size="11.6" font-weight="600" text-anchor="middle">Generation</text>
+<text x="554.0" y="370" fill="#e8f0fc" font-size="11.6" font-weight="600" text-anchor="middle">Service</text>
+<text x="554.0" y="386" fill="#93a6c4" font-size="10" text-anchor="middle">jobs · blueprint</text>
+<text x="554.0" y="399" fill="#93a6c4" font-size="10" text-anchor="middle">pool assembly</text>
+<rect x="664.0" y="340" width="192.0" height="68" rx="7" fill="#0c1220" stroke="#4a7bb7" stroke-opacity="0.8"/>
+<text x="760.0" y="356" fill="#e8f0fc" font-size="11.6" font-weight="600" text-anchor="middle">Exercise</text>
+<text x="760.0" y="370" fill="#e8f0fc" font-size="11.6" font-weight="600" text-anchor="middle">Service</text>
+<text x="760.0" y="386" fill="#93a6c4" font-size="10" text-anchor="middle">CRUD · versions</text>
+<text x="760.0" y="399" fill="#93a6c4" font-size="10" text-anchor="middle">bank · variants</text>
+<rect x="870.0" y="340" width="192.0" height="68" rx="7" fill="#0c1220" stroke="#4a7bb7" stroke-opacity="0.8"/>
+<text x="966.0" y="356" fill="#e8f0fc" font-size="11.6" font-weight="600" text-anchor="middle">Exam</text>
+<text x="966.0" y="370" fill="#e8f0fc" font-size="11.6" font-weight="600" text-anchor="middle">Service</text>
+<text x="966.0" y="386" fill="#93a6c4" font-size="10" text-anchor="middle">select · order</text>
+<text x="966.0" y="399" fill="#93a6c4" font-size="10" text-anchor="middle">marks · numbering</text>
+<rect x="1076.0" y="340" width="192.0" height="68" rx="7" fill="#0c1220" stroke="#4a7bb7" stroke-opacity="0.8"/>
+<text x="1172.0" y="356" fill="#e8f0fc" font-size="11.6" font-weight="600" text-anchor="middle">Export</text>
+<text x="1172.0" y="370" fill="#e8f0fc" font-size="11.6" font-weight="600" text-anchor="middle">Service</text>
+<text x="1172.0" y="386" fill="#93a6c4" font-size="10" text-anchor="middle">render orchestration</text>
+<text x="1172.0" y="399" fill="#93a6c4" font-size="10" text-anchor="middle">artefact registry</text>
+<rect x="1282.0" y="340" width="192.0" height="68" rx="7" fill="#0c1220" stroke="#4a7bb7" stroke-opacity="0.8"/>
+<text x="1378.0" y="356" fill="#e8f0fc" font-size="11.6" font-weight="600" text-anchor="middle">Asset</text>
+<text x="1378.0" y="370" fill="#e8f0fc" font-size="11.6" font-weight="600" text-anchor="middle">Service</text>
+<text x="1378.0" y="386" fill="#93a6c4" font-size="10" text-anchor="middle">spec → job → asset</text>
+<text x="1378.0" y="399" fill="#93a6c4" font-size="10" text-anchor="middle">dedupe · moderation</text>
+<rect x="30" y="454" width="1460" height="117" rx="10" fill="#241f38" stroke="#7a5fb0" stroke-width="1.5"/>
+<text x="46" y="473" fill="#dbe6f7" font-size="14" font-weight="700">AI ORCHESTRATION  ·  MCP  ·  RENDER</text>
+<text x="1474" y="473" fill="#8fa3c4" font-size="11" text-anchor="end">grounding is enforced at the MCP tool boundary, not by prompt wishes</text>
+<rect x="46.0" y="480" width="466.7" height="79" rx="7" fill="#0c1220" stroke="#7a5fb0" stroke-opacity="0.8"/>
+<text x="279.3" y="496" fill="#e8f0fc" font-size="11.6" font-weight="600" text-anchor="middle">Agent Runtime  (state machine)</text>
+<text x="279.3" y="512" fill="#93a6c4" font-size="10" text-anchor="middle">RESOLVE_SCOPE → RETRIEVE_CONTEXT → PLAN_BLUEPRINT</text>
+<text x="279.3" y="525" fill="#93a6c4" font-size="10" text-anchor="middle">→ SYNTHESIZE (batched) → VALIDATE (critic) → REPAIR</text>
+<text x="279.3" y="538" fill="#93a6c4" font-size="10" text-anchor="middle">→ EXTRACT_IMAGE_SPECS → PERSIST_POOL → READY</text>
+<text x="279.3" y="551" fill="#93a6c4" font-size="10" text-anchor="middle">bounded: ≤40 tool calls · ≤250k tokens · ≤180s</text>
+<rect x="526.7" y="480" width="466.7" height="79" rx="7" fill="#0c1220" stroke="#7a5fb0" stroke-opacity="0.8"/>
+<text x="760.0" y="496" fill="#e8f0fc" font-size="11.6" font-weight="600" text-anchor="middle">MCP SERVER  (read-only DB role)</text>
+<text x="760.0" y="512" fill="#93a6c4" font-size="10" text-anchor="middle">Resources   curriculum://  textbook://  policy://</text>
+<text x="760.0" y="525" fill="#93a6c4" font-size="10" text-anchor="middle">Tools   15  (search · objectives · templates · validate)</text>
+<text x="760.0" y="538" fill="#93a6c4" font-size="10" text-anchor="middle">Prompts   4  versioned, DB-served, no redeploy</text>
+<text x="760.0" y="551" fill="#93a6c4" font-size="10" text-anchor="middle">SCOPE GUARD  → error -32002 on out-of-scope read</text>
+<rect x="1007.3" y="480" width="466.7" height="79" rx="7" fill="#0c1220" stroke="#7a5fb0" stroke-opacity="0.8"/>
+<text x="1240.7" y="496" fill="#e8f0fc" font-size="11.6" font-weight="600" text-anchor="middle">Render Service</text>
+<text x="1240.7" y="512" fill="#93a6c4" font-size="10" text-anchor="middle">LayoutModel → Jinja2 + print CSS</text>
+<text x="1240.7" y="525" fill="#93a6c4" font-size="10" text-anchor="middle">→ Chromium (PDF) · python-docx (DOCX)</text>
+<text x="1240.7" y="538" fill="#93a6c4" font-size="10" text-anchor="middle">RTL font stack · break-inside: avoid</text>
+<text x="1240.7" y="551" fill="#93a6c4" font-size="10" text-anchor="middle">paper + answer key from ONE source</text>
+<rect x="30" y="605" width="1460" height="91" rx="10" fill="#3a2320" stroke="#c07a4a" stroke-width="1.5"/>
+<text x="46" y="624" fill="#dbe6f7" font-size="14" font-weight="700">AI GATEWAY</text>
+<text x="1474" y="624" fill="#8fa3c4" font-size="11" text-anchor="end">the only module importing vendor SDKs · routing · retries · circuit breaker · semantic cache · token &amp; cost accounting</text>
+<rect x="46.0" y="631" width="346.5" height="53" rx="7" fill="#0c1220" stroke="#c07a4a" stroke-opacity="0.8"/>
+<text x="219.2" y="647" fill="#e8f0fc" font-size="11.6" font-weight="600" text-anchor="middle">LLMProvider</text>
+<text x="219.2" y="663" fill="#93a6c4" font-size="10" text-anchor="middle">OpenAI · Anthropic</text>
+<text x="219.2" y="676" fill="#93a6c4" font-size="10" text-anchor="middle">Google · local vLLM</text>
+<rect x="406.5" y="631" width="346.5" height="53" rx="7" fill="#0c1220" stroke="#c07a4a" stroke-opacity="0.8"/>
+<text x="579.8" y="647" fill="#e8f0fc" font-size="11.6" font-weight="600" text-anchor="middle">ImageProvider</text>
+<text x="579.8" y="663" fill="#93a6c4" font-size="10" text-anchor="middle">DALL·E 3 · SDXL · Imagen</text>
+<text x="579.8" y="676" fill="#93a6c4" font-size="10" text-anchor="middle">+ internal SVG renderer</text>
+<rect x="767.0" y="631" width="346.5" height="53" rx="7" fill="#0c1220" stroke="#c07a4a" stroke-opacity="0.8"/>
+<text x="940.2" y="647" fill="#e8f0fc" font-size="11.6" font-weight="600" text-anchor="middle">EmbeddingProvider</text>
+<text x="940.2" y="663" fill="#93a6c4" font-size="10" text-anchor="middle">multilingual ar/fr/en</text>
+<text x="940.2" y="676" fill="#93a6c4" font-size="10" text-anchor="middle">1536-dim shared space</text>
+<rect x="1127.5" y="631" width="346.5" height="53" rx="7" fill="#0c1220" stroke="#c07a4a" stroke-opacity="0.8"/>
+<text x="1300.8" y="647" fill="#e8f0fc" font-size="11.6" font-weight="600" text-anchor="middle">Moderation · OCR</text>
+<text x="1300.8" y="663" fill="#93a6c4" font-size="10" text-anchor="middle">safety classifier</text>
+<text x="1300.8" y="676" fill="#93a6c4" font-size="10" text-anchor="middle">Tesseract → Vision</text>
+<rect x="30" y="730" width="1460" height="91" rx="10" fill="#20321f" stroke="#5f9a52" stroke-width="1.5"/>
+<text x="46" y="749" fill="#dbe6f7" font-size="14" font-weight="700">ASYNC WORKERS</text>
+<text x="1474" y="749" fill="#8fa3c4" font-size="11" text-anchor="end">idempotent · queue-isolated so an image burst cannot starve exports</text>
+<rect x="46.0" y="756" width="226.3" height="53" rx="7" fill="#0c1220" stroke="#5f9a52" stroke-opacity="0.8"/>
+<text x="159.2" y="772" fill="#e8f0fc" font-size="11.6" font-weight="600" text-anchor="middle">ingest</text>
+<text x="159.2" y="788" fill="#93a6c4" font-size="10" text-anchor="middle">parse · ocr</text>
+<text x="159.2" y="801" fill="#93a6c4" font-size="10" text-anchor="middle">embed</text>
+<rect x="286.3" y="756" width="226.3" height="53" rx="7" fill="#0c1220" stroke="#5f9a52" stroke-opacity="0.8"/>
+<text x="399.5" y="772" fill="#e8f0fc" font-size="11.6" font-weight="600" text-anchor="middle">gen</text>
+<text x="399.5" y="788" fill="#93a6c4" font-size="10" text-anchor="middle">plan</text>
+<text x="399.5" y="801" fill="#93a6c4" font-size="10" text-anchor="middle">synthesize</text>
+<rect x="526.7" y="756" width="226.3" height="53" rx="7" fill="#0c1220" stroke="#5f9a52" stroke-opacity="0.8"/>
+<text x="639.8" y="772" fill="#e8f0fc" font-size="11.6" font-weight="600" text-anchor="middle">gen</text>
+<text x="639.8" y="788" fill="#93a6c4" font-size="10" text-anchor="middle">validate</text>
+<text x="639.8" y="801" fill="#93a6c4" font-size="10" text-anchor="middle">repair</text>
+<rect x="767.0" y="756" width="226.3" height="53" rx="7" fill="#0c1220" stroke="#5f9a52" stroke-opacity="0.8"/>
+<text x="880.2" y="772" fill="#e8f0fc" font-size="11.6" font-weight="600" text-anchor="middle">image</text>
+<text x="880.2" y="788" fill="#93a6c4" font-size="10" text-anchor="middle">generate · verify</text>
+<text x="880.2" y="801" fill="#93a6c4" font-size="10" text-anchor="middle">moderate</text>
+<rect x="1007.3" y="756" width="226.3" height="53" rx="7" fill="#0c1220" stroke="#5f9a52" stroke-opacity="0.8"/>
+<text x="1120.5" y="772" fill="#e8f0fc" font-size="11.6" font-weight="600" text-anchor="middle">export</text>
+<text x="1120.5" y="788" fill="#93a6c4" font-size="10" text-anchor="middle">render</text>
+<rect x="1247.7" y="756" width="226.3" height="53" rx="7" fill="#0c1220" stroke="#5f9a52" stroke-opacity="0.8"/>
+<text x="1360.8" y="772" fill="#e8f0fc" font-size="11.6" font-weight="600" text-anchor="middle">maintenance</text>
+<text x="1360.8" y="788" fill="#93a6c4" font-size="10" text-anchor="middle">reindex</text>
+<text x="1360.8" y="801" fill="#93a6c4" font-size="10" text-anchor="middle">cache_gc</text>
+<rect x="30" y="855" width="1460" height="91" rx="10" fill="#152a2a" stroke="#4a8f8f" stroke-width="1.5"/>
+<text x="46" y="874" fill="#dbe6f7" font-size="14" font-weight="700">DATA</text>
+<rect x="46.0" y="881" width="466.7" height="53" rx="7" fill="#0c1220" stroke="#4a8f8f" stroke-opacity="0.8"/>
+<text x="279.3" y="897" fill="#e8f0fc" font-size="11.6" font-weight="600" text-anchor="middle">PostgreSQL 16 + pgvector</text>
+<text x="279.3" y="913" fill="#93a6c4" font-size="10" text-anchor="middle">curriculum tree · source chunks + HNSW embeddings</text>
+<text x="279.3" y="926" fill="#93a6c4" font-size="10" text-anchor="middle">versioned exercises · exams · citations · audit logs</text>
+<rect x="526.7" y="881" width="466.7" height="53" rx="7" fill="#0c1220" stroke="#4a8f8f" stroke-opacity="0.8"/>
+<text x="760.0" y="897" fill="#e8f0fc" font-size="11.6" font-weight="600" text-anchor="middle">Redis</text>
+<text x="760.0" y="913" fill="#93a6c4" font-size="10" text-anchor="middle">queues · semantic cache</text>
+<text x="760.0" y="926" fill="#93a6c4" font-size="10" text-anchor="middle">locks · rate limits</text>
+<rect x="1007.3" y="881" width="466.7" height="53" rx="7" fill="#0c1220" stroke="#4a8f8f" stroke-opacity="0.8"/>
+<text x="1240.7" y="897" fill="#e8f0fc" font-size="11.6" font-weight="600" text-anchor="middle">S3 object store</text>
+<text x="1240.7" y="913" fill="#93a6c4" font-size="10" text-anchor="middle">raw books · page images</text>
+<text x="1240.7" y="926" fill="#93a6c4" font-size="10" text-anchor="middle">generated images · exports</text>
+<rect x="30" y="980" width="1460" height="91" rx="10" fill="#2b2333" stroke="#8a6fa8" stroke-width="1.5"/>
+<text x="46" y="999" fill="#dbe6f7" font-size="14" font-weight="700">OBSERVABILITY</text>
+<text x="1474" y="999" fill="#8fa3c4" font-size="11" text-anchor="end">one trace_id follows HTTP → worker → MCP call → provider call</text>
+<rect x="46.0" y="1006" width="466.7" height="53" rx="7" fill="#0c1220" stroke="#8a6fa8" stroke-opacity="0.8"/>
+<text x="279.3" y="1022" fill="#e8f0fc" font-size="11.6" font-weight="600" text-anchor="middle">OpenTelemetry</text>
+<text x="279.3" y="1038" fill="#93a6c4" font-size="10" text-anchor="middle">distributed traces</text>
+<rect x="526.7" y="1006" width="466.7" height="53" rx="7" fill="#0c1220" stroke="#8a6fa8" stroke-opacity="0.8"/>
+<text x="760.0" y="1022" fill="#e8f0fc" font-size="11.6" font-weight="600" text-anchor="middle">Prometheus / Loki</text>
+<text x="760.0" y="1038" fill="#93a6c4" font-size="10" text-anchor="middle">metrics · logs · alerts</text>
+<rect x="1007.3" y="1006" width="466.7" height="53" rx="7" fill="#0c1220" stroke="#8a6fa8" stroke-opacity="0.8"/>
+<text x="1240.7" y="1022" fill="#e8f0fc" font-size="11.6" font-weight="600" text-anchor="middle">LLM trace store</text>
+<text x="1240.7" y="1038" fill="#93a6c4" font-size="10" text-anchor="middle">prompt version · retrieved chunk ids</text>
+<text x="1240.7" y="1051" fill="#93a6c4" font-size="10" text-anchor="middle">tokens · cost · validation verdict</text>
+<line x1="760.0" y1="157" x2="760.0" y2="185" stroke="#6f8ab5" stroke-width="1.6" marker-end="url(#ar)"/>
+<line x1="760.0" y1="282" x2="760.0" y2="310" stroke="#6f8ab5" stroke-width="1.6" marker-end="url(#ar)"/>
+<line x1="760.0" y1="422" x2="760.0" y2="450" stroke="#6f8ab5" stroke-width="1.6" marker-end="url(#ar)"/>
+<line x1="760.0" y1="573" x2="760.0" y2="601" stroke="#6f8ab5" stroke-width="1.6" marker-end="url(#ar)"/>
+<line x1="760.0" y1="698" x2="760.0" y2="726" stroke="#6f8ab5" stroke-width="1.6" marker-end="url(#ar)"/>
+<line x1="760.0" y1="823" x2="760.0" y2="851" stroke="#6f8ab5" stroke-width="1.6" marker-end="url(#ar)"/>
+<line x1="760.0" y1="948" x2="760.0" y2="976" stroke="#6f8ab5" stroke-width="1.6" marker-end="url(#ar)"/>
+<rect x="30" y="1123" width="1460" height="26" rx="6" fill="#101b16" stroke="#4d7a5a"/>
+<text x="46" y="1140.5" fill="#9fd6b4" font-size="11.2">GROUNDING GUARANTEE — every exercise stores citations to source_chunk + learning_objective ids; the MCP scope guard refuses any retrieval outside the teacher’s selected chapters and fails closed (verified: mcp_server/test_scope_guard.py, 9/9 passing)</text>
+</svg>

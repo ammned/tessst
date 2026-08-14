@@ -1,0 +1,1502 @@
+openapi: 3.1.0
+info:
+  title: ExamForge API
+  version: 1.0.0
+  description: |
+    Backend-driven, curriculum-grounded exam authoring API for primary school teachers
+    (years 1-6, all subjects).
+
+    AUTHENTICATION IS OUT OF SCOPE in this iteration. An upstream gateway injects
+    `X-Teacher-Id`; when identity lands, the gateway derives it from a verified token
+    and the header stops being client-trusted. No route signatures change.
+servers:
+  - url: /api/v1
+
+tags:
+  - name: curriculum
+  - name: sources
+  - name: generation
+  - name: exercises
+  - name: exams
+  - name: exports
+  - name: assets
+  - name: admin
+  - name: system
+
+components:
+  parameters:
+    TeacherId:
+      name: X-Teacher-Id
+      in: header
+      required: true
+      description: Injected by the gateway. [AUTH-LATER] token-derived.
+      schema: { type: string, format: uuid }
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: false
+      schema: { type: string, maxLength: 128 }
+    IfMatch:
+      name: If-Match
+      in: header
+      required: false
+      description: Optimistic concurrency; current resource version.
+      schema: { type: string }
+    Cursor:
+      name: cursor
+      in: query
+      schema: { type: string }
+    Limit:
+      name: limit
+      in: query
+      schema: { type: integer, minimum: 1, maximum: 200, default: 50 }
+
+  schemas:
+    Problem:
+      type: object
+      description: RFC 9457 problem details.
+      properties:
+        type: { type: string }
+        title: { type: string }
+        status: { type: integer }
+        code:
+          type: string
+          enum: [VALIDATION_ERROR, NODE_NOT_FOUND, NODE_NOT_PUBLISHED, SCOPE_VIOLATION,
+                 LOW_SOURCE_COVERAGE, MCP_UNAVAILABLE, PROVIDER_UNAVAILABLE,
+                 TOKEN_BUDGET_EXCEEDED, JOB_NOT_READY, EXAM_EMPTY, EXPORT_FAILED,
+                 ASSET_MODERATION_BLOCKED, CONFLICT, RATE_LIMITED, UNSUPPORTED_MEDIA_TYPE]
+        detail: { type: string }
+        instance: { type: string }
+        hints: { type: array, items: { type: string } }
+      required: [title, status, code]
+
+    ExerciseType:
+      type: string
+      enum: [mcq, multi_select, true_false, fill_blank, matching, ordering,
+             short_answer, open_ended, problem_solving, label_diagram]
+    Difficulty: { type: string, enum: [easy, medium, hard] }
+    BloomLevel:
+      type: string
+      enum: [remember, understand, apply, analyze, evaluate, create]
+    GroundingMode:
+      type: string
+      enum: [official_curriculum, custom_source, mixed]
+    JobState:
+      type: string
+      enum: [queued, resolving, retrieving, planning, synthesizing, validating,
+             imaging, ready, partial, failed, cancelled]
+
+    CurriculumNode:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        parent_id: { type: [string, "null"], format: uuid }
+        node_type: { type: string, enum: [year, subject, unit, chapter, lesson] }
+        subject_code: { type: [string, "null"] }
+        year_level: { type: [integer, "null"], minimum: 1, maximum: 6 }
+        code: { type: [string, "null"] }
+        title: { type: string }
+        summary: { type: [string, "null"] }
+        path_label: { type: string }
+        depth: { type: integer }
+        ordinal: { type: integer }
+        has_children: { type: boolean }
+        objective_count: { type: integer }
+        chunk_count: { type: integer }
+      required: [id, node_type, title, path_label]
+
+    LearningObjective:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        node_id: { type: string, format: uuid }
+        code: { type: [string, "null"] }
+        statement: { type: string }
+        bloom_level: { $ref: '#/components/schemas/BloomLevel' }
+        action_verbs: { type: array, items: { type: string } }
+      required: [id, statement, bloom_level]
+
+    NodeCoverage:
+      type: object
+      description: Pre-flight signal so the UI can warn before a weak generation.
+      properties:
+        node_id: { type: string, format: uuid }
+        chunk_count: { type: integer }
+        objective_count: { type: integer }
+        figure_count: { type: integer }
+        coverage_level: { type: string, enum: [none, low, adequate, rich] }
+        warnings: { type: array, items: { type: string } }
+      required: [node_id, chunk_count, coverage_level]
+
+    Citation:
+      type: object
+      properties:
+        chunk_id: { type: string, format: uuid }
+        node_id: { type: string, format: uuid }
+        node_path: { type: string }
+        page: { type: [integer, "null"] }
+        book_edition: { type: [string, "null"] }
+      required: [chunk_id, node_id, node_path]
+
+    GenerationPreferences:
+      type: object
+      properties:
+        question_count: { type: integer, minimum: 1, maximum: 60, default: 10 }
+        pool_multiplier: { type: number, minimum: 1, maximum: 5, default: 2.5 }
+        difficulty_mix:
+          type: object
+          additionalProperties: { type: number, minimum: 0, maximum: 1 }
+          default: { easy: 0.2, medium: 0.6, hard: 0.2 }
+        type_mix:
+          type: object
+          additionalProperties: { type: number, minimum: 0, maximum: 1 }
+        bloom_target:
+          type: object
+          additionalProperties: { type: number, minimum: 0, maximum: 1 }
+        language: { type: string, default: fr }
+        pedagogical_focus: { type: string, maxLength: 500 }
+        allow_images: { type: boolean, default: true }
+        time_limit_minutes: { type: integer, minimum: 5, maximum: 240 }
+      required: [question_count]
+
+    GenerationJobCreate:
+      type: object
+      properties:
+        grounding_mode: { $ref: '#/components/schemas/GroundingMode' }
+        framework_id: { type: string, format: uuid }
+        year_level: { type: integer, minimum: 1, maximum: 6 }
+        subject_code: { type: string }
+        node_ids: { type: array, items: { type: string, format: uuid } }
+        custom_source_id: { type: [string, "null"], format: uuid }
+        exam_id: { type: [string, "null"], format: uuid }
+        preferences: { $ref: '#/components/schemas/GenerationPreferences' }
+      required: [year_level, preferences]
+
+    GenerationJob:
+      type: object
+      properties:
+        job_id: { type: string, format: uuid }
+        state: { $ref: '#/components/schemas/JobState' }
+        progress: { type: number, minimum: 0, maximum: 1 }
+        grounding_mode: { $ref: '#/components/schemas/GroundingMode' }
+        node_ids: { type: array, items: { type: string, format: uuid } }
+        pool_size: { type: integer }
+        accepted_count: { type: integer }
+        needs_review_count: { type: integer }
+        rejected_count: { type: integer }
+        warnings: { type: array, items: { type: object } }
+        error: { $ref: '#/components/schemas/Problem' }
+        total_cost_usd: { type: number }
+        events_url: { type: string }
+        estimated_seconds: { type: integer }
+        created_at: { type: string, format: date-time }
+        finished_at: { type: [string, "null"], format: date-time }
+      required: [job_id, state]
+
+    BlueprintSlot:
+      type: object
+      properties:
+        slot_no: { type: integer }
+        objective_id: { type: string, format: uuid }
+        type_code: { $ref: '#/components/schemas/ExerciseType' }
+        difficulty: { $ref: '#/components/schemas/Difficulty' }
+        bloom_level: { $ref: '#/components/schemas/BloomLevel' }
+        marks: { type: number }
+        needs_image: { type: boolean }
+        focus_hint: { type: string }
+      required: [slot_no, objective_id, type_code, difficulty]
+
+    ExerciseMedia:
+      type: object
+      properties:
+        asset_id: { type: [string, "null"], format: uuid }
+        position: { type: string, enum: [above_stem, below_stem, inline, right] }
+        status: { type: string, enum: [pending, generating, ready, failed, moderation_blocked] }
+        url: { type: [string, "null"] }
+        alt_text: { type: [string, "null"] }
+
+    Exercise:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        version: { type: integer }
+        version_id: { type: string, format: uuid }
+        type_code: { $ref: '#/components/schemas/ExerciseType' }
+        subject_code: { type: [string, "null"] }
+        year_level: { type: [integer, "null"] }
+        difficulty: { $ref: '#/components/schemas/Difficulty' }
+        bloom_level: { $ref: '#/components/schemas/BloomLevel' }
+        language: { type: string }
+        status: { type: string, enum: [draft, accepted, needs_review, rejected, archived] }
+        origin: { type: string, enum: [ai_generated, ai_edited, teacher_authored, textbook_adapted] }
+        marks: { type: number }
+        estimated_minutes: { type: [number, "null"] }
+        content:
+          type: object
+          description: Shape validated against the type's JSON schema.
+          properties:
+            instruction: { type: string }
+            stem: { type: string }
+            options:
+              type: array
+              items:
+                type: object
+                properties:
+                  key: { type: string }
+                  text: { type: string }
+            pairs: { type: array, items: { type: object } }
+            blanks: { type: array, items: { type: object } }
+            media: { $ref: '#/components/schemas/ExerciseMedia' }
+        answer_key:
+          type: object
+          properties:
+            correct: { type: array, items: { type: string } }
+            explanation: { type: string }
+            accepted_variants: { type: array, items: { type: string } }
+            marking_scheme:
+              type: array
+              items:
+                type: object
+                properties:
+                  step: { type: string }
+                  marks: { type: number }
+        objectives: { type: array, items: { $ref: '#/components/schemas/LearningObjective' } }
+        citations: { type: array, items: { $ref: '#/components/schemas/Citation' } }
+        validation:
+          type: object
+          properties:
+            verdict: { type: string }
+            critic_agrees: { type: boolean }
+            alignment_confidence: { type: number }
+            ngram_overlap: { type: integer }
+            issues: { type: array, items: { type: string } }
+      required: [id, type_code, content, answer_key]
+
+    ExercisePatch:
+      type: object
+      description: Creates a NEW version; existing versions are immutable.
+      properties:
+        content: { type: object }
+        answer_key: { type: object }
+        marks: { type: number }
+        difficulty: { $ref: '#/components/schemas/Difficulty' }
+        tags: { type: array, items: { type: string } }
+        edit_note: { type: string }
+
+    ExamCreate:
+      type: object
+      properties:
+        title: { type: string }
+        subtitle: { type: string }
+        from_job_id: { type: [string, "null"], format: uuid }
+        exercise_version_ids: { type: array, items: { type: string, format: uuid } }
+        subject_code: { type: string }
+        year_level: { type: integer, minimum: 1, maximum: 6 }
+        language: { type: string, default: fr }
+        class_label: { type: string }
+        school_name: { type: string }
+        exam_date: { type: string, format: date }
+        duration_minutes: { type: integer }
+        instructions: { type: string }
+        layout_options: { type: object }
+      required: [title]
+
+    ExamItem:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        ordinal: { type: integer }
+        display_number: { type: string }
+        section_id: { type: [string, "null"], format: uuid }
+        exercise_version_id: { type: string, format: uuid }
+        marks: { type: number }
+        marks_override: { type: [number, "null"] }
+        page_break_before: { type: boolean }
+        exercise: { $ref: '#/components/schemas/Exercise' }
+      required: [id, ordinal, exercise_version_id]
+
+    Exam:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        version: { type: integer }
+        title: { type: string }
+        subtitle: { type: [string, "null"] }
+        school_name: { type: [string, "null"] }
+        class_label: { type: [string, "null"] }
+        subject_code: { type: [string, "null"] }
+        year_level: { type: [integer, "null"] }
+        language: { type: string }
+        is_rtl: { type: boolean }
+        exam_date: { type: [string, "null"], format: date }
+        duration_minutes: { type: [integer, "null"] }
+        total_marks: { type: number }
+        status: { type: string, enum: [building, finalised, exported, archived] }
+        grounding_mode: { $ref: '#/components/schemas/GroundingMode' }
+        instructions: { type: [string, "null"] }
+        layout_options: { type: object }
+        sections: { type: array, items: { type: object } }
+        items: { type: array, items: { $ref: '#/components/schemas/ExamItem' } }
+      required: [id, title, total_marks, status]
+
+    ExamCoverage:
+      type: object
+      properties:
+        exam_id: { type: string, format: uuid }
+        grounding_mode: { $ref: '#/components/schemas/GroundingMode' }
+        objectives:
+          type: array
+          items:
+            type: object
+            properties:
+              objective_id: { type: string, format: uuid }
+              code: { type: [string, "null"] }
+              statement: { type: string }
+              item_count: { type: integer }
+              marks: { type: number }
+        uncovered_objectives: { type: array, items: { $ref: '#/components/schemas/LearningObjective' } }
+        bloom_distribution: { type: object, additionalProperties: { type: number } }
+        difficulty_distribution: { type: object, additionalProperties: { type: number } }
+        type_distribution: { type: object, additionalProperties: { type: integer } }
+        total_marks: { type: number }
+        estimated_minutes: { type: number }
+        warnings: { type: array, items: { type: string } }
+
+    ExportCreate:
+      type: object
+      properties:
+        format: { type: string, enum: [pdf, docx, html], default: pdf }
+        include_answer_key: { type: boolean, default: true }
+        answer_key_mode:
+          type: string
+          enum: [separate_document, appended, inline]
+          default: separate_document
+        options:
+          type: object
+          properties:
+            paper: { type: string, enum: [A4, A3, Letter], default: A4 }
+            columns: { type: integer, enum: [1, 2], default: 1 }
+            font_size: { type: integer, minimum: 9, maximum: 20, default: 12 }
+            show_marks: { type: boolean, default: true }
+            answer_space: { type: string, enum: [none, lines, box, grid], default: lines }
+            header_logo: { type: boolean, default: true }
+            watermark: { type: [string, "null"] }
+
+    ExportJob:
+      type: object
+      properties:
+        export_id: { type: string, format: uuid }
+        exam_id: { type: string, format: uuid }
+        status: { type: string, enum: [queued, rendering, ready, failed] }
+        format: { type: string }
+        page_count: { type: [integer, "null"] }
+        paper_url: { type: [string, "null"] }
+        answer_key_url: { type: [string, "null"] }
+        expires_at: { type: [string, "null"], format: date-time }
+        error: { $ref: '#/components/schemas/Problem' }
+      required: [export_id, status]
+
+    Asset:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        kind: { type: string, enum: [generated_image, svg_figure, library_asset, uploaded_image] }
+        status: { type: string, enum: [pending, generating, ready, failed, moderation_blocked] }
+        url: { type: [string, "null"] }
+        thumbnail_url: { type: [string, "null"] }
+        width: { type: [integer, "null"] }
+        height: { type: [integer, "null"] }
+        spec: { type: object }
+        provider: { type: [string, "null"] }
+        error_detail: { type: [string, "null"] }
+      required: [id, status]
+
+    ImageRequest:
+      type: object
+      properties:
+        purpose:
+          type: string
+          enum: [count_objects, vocabulary_illustration, labelled_diagram,
+                 scene_comprehension, geometry_figure, map_outline]
+        hint: { type: string, maxLength: 300 }
+        regenerate: { type: boolean, default: false }
+      required: [purpose]
+
+    CustomSource:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        status: { type: string, enum: [processing, ready, failed] }
+        title: { type: [string, "null"] }
+        language: { type: [string, "null"] }
+        chunk_count: { type: integer }
+        detected_topics: { type: array, items: { type: string } }
+        warnings: { type: array, items: { type: string } }
+      required: [id, status]
+
+  responses:
+    Problem:
+      description: Error
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+
+paths:
+  # ------------------------------------------------------------------ curriculum
+  /curriculum/frameworks:
+    get:
+      tags: [curriculum]
+      summary: List available official programs
+      parameters: [{ $ref: '#/components/parameters/TeacherId' }]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { type: array, items: { type: object } }
+
+  /curriculum/subjects:
+    get:
+      tags: [curriculum]
+      summary: Subject catalogue (i18n names, RTL flags)
+      parameters: [{ $ref: '#/components/parameters/TeacherId' }]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { type: array, items: { type: object } }
+
+  /curriculum/tree:
+    get:
+      tags: [curriculum]
+      summary: Curriculum tree for the chapter picker
+      parameters:
+        - { $ref: '#/components/parameters/TeacherId' }
+        - { name: framework_id, in: query, schema: { type: string, format: uuid } }
+        - { name: year_level, in: query, schema: { type: integer, minimum: 1, maximum: 6 } }
+        - { name: subject_code, in: query, schema: { type: string } }
+        - { name: depth, in: query, schema: { type: integer, default: 3 } }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: '#/components/schemas/CurriculumNode' } }
+
+  /curriculum/nodes/{node_id}:
+    get:
+      tags: [curriculum]
+      summary: Node detail
+      parameters:
+        - { $ref: '#/components/parameters/TeacherId' }
+        - { name: node_id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CurriculumNode' }
+        '404': { $ref: '#/components/responses/Problem' }
+
+  /curriculum/nodes/{node_id}/children:
+    get:
+      tags: [curriculum]
+      summary: Lazy-load child nodes
+      parameters:
+        - { $ref: '#/components/parameters/TeacherId' }
+        - { name: node_id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: '#/components/schemas/CurriculumNode' } }
+
+  /curriculum/nodes/{node_id}/objectives:
+    get:
+      tags: [curriculum]
+      summary: Official learning objectives for a node
+      parameters:
+        - { $ref: '#/components/parameters/TeacherId' }
+        - { name: node_id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: '#/components/schemas/LearningObjective' } }
+
+  /curriculum/nodes/{node_id}/coverage:
+    get:
+      tags: [curriculum]
+      summary: Pre-flight source coverage check
+      description: Lets the UI warn "this chapter has thin coverage" BEFORE generating.
+      parameters:
+        - { $ref: '#/components/parameters/TeacherId' }
+        - { name: node_id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/NodeCoverage' }
+
+  /curriculum/search:
+    get:
+      tags: [curriculum]
+      summary: Free-text search across the program
+      parameters:
+        - { $ref: '#/components/parameters/TeacherId' }
+        - { name: q, in: query, required: true, schema: { type: string } }
+        - { name: year_level, in: query, schema: { type: integer } }
+        - { name: subject_code, in: query, schema: { type: string } }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: '#/components/schemas/CurriculumNode' } }
+
+  # --------------------------------------------------------------------- sources
+  /sources/uploads:
+    post:
+      tags: [sources]
+      summary: Upload a custom chapter (PDF/DOCX/image)
+      parameters:
+        - { $ref: '#/components/parameters/TeacherId' }
+        - { $ref: '#/components/parameters/IdempotencyKey' }
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file: { type: string, format: binary }
+                title: { type: string }
+                year_level: { type: integer, minimum: 1, maximum: 6 }
+                subject_code: { type: string }
+              required: [file]
+      responses:
+        '202':
+          description: Accepted; parsing asynchronously
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CustomSource' }
+        '415': { $ref: '#/components/responses/Problem' }
+
+  /sources/text:
+    post:
+      tags: [sources]
+      summary: Submit pasted chapter text
+      parameters: [{ $ref: '#/components/parameters/TeacherId' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                text: { type: string, minLength: 50, maxLength: 200000 }
+                title: { type: string }
+                language: { type: string }
+                year_level: { type: integer, minimum: 1, maximum: 6 }
+                subject_code: { type: string }
+              required: [text]
+      responses:
+        '202':
+          description: Accepted
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CustomSource' }
+
+  /sources/{source_id}:
+    get:
+      tags: [sources]
+      summary: Custom source status
+      parameters:
+        - { $ref: '#/components/parameters/TeacherId' }
+        - { name: source_id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CustomSource' }
+    delete:
+      tags: [sources]
+      summary: Delete a custom source and purge its chunks
+      parameters:
+        - { $ref: '#/components/parameters/TeacherId' }
+        - { name: source_id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '204': { description: Deleted }
+
+  # ------------------------------------------------------------------ generation
+  /generation-jobs:
+    post:
+      tags: [generation]
+      summary: Generate a curriculum-grounded exercise pool
+      description: |
+        Core entry point. Validates scope, then runs the agent pipeline:
+        RESOLVE_SCOPE -> RETRIEVE_CONTEXT (MCP) -> PLAN_BLUEPRINT -> SYNTHESIZE ->
+        VALIDATE -> PERSIST_POOL -> (async) IMAGE_GENERATE.
+      parameters:
+        - { $ref: '#/components/parameters/TeacherId' }
+        - { $ref: '#/components/parameters/IdempotencyKey' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/GenerationJobCreate' }
+      responses:
+        '202':
+          description: Job accepted
+          headers:
+            Location: { schema: { type: string } }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/GenerationJob' }
+        '422':
+          description: Scope invalid or curriculum coverage insufficient
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/Problem' }
+        '429': { $ref: '#/components/responses/Problem' }
+
+  /generation-jobs/{job_id}:
+    get:
+      tags: [generation]
+      summary: Job status
+      parameters:
+        - { $ref: '#/components/parameters/TeacherId' }
+        - { name: job_id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/GenerationJob' }
+        '404': { $ref: '#/components/responses/Problem' }
+
+  /generation-jobs/{job_id}/events:
+    get:
+      tags: [generation]
+      summary: Live progress stream (SSE)
+      description: |
+        Emits `state`, `item`, `warning`, `image` and `done` events so the teacher can
+        start curating before the pool finishes.
+      parameters:
+        - { $ref: '#/components/parameters/TeacherId' }
+        - { name: job_id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: text/event-stream
+          content:
+            text/event-stream:
+              schema: { type: string }
+
+  /generation-jobs/{job_id}/pool:
+    get:
+      tags: [generation]
+      summary: The candidate exercise pool
+      parameters:
+        - { $ref: '#/components/parameters/TeacherId' }
+        - { name: job_id, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: status, in: query, schema: { type: string, enum: [accepted, needs_review, all], default: accepted } }
+        - { name: type_code, in: query, schema: { $ref: '#/components/schemas/ExerciseType' } }
+        - { name: difficulty, in: query, schema: { $ref: '#/components/schemas/Difficulty' } }
+        - { name: objective_id, in: query, schema: { type: string, format: uuid } }
+        - { $ref: '#/components/parameters/Limit' }
+        - { $ref: '#/components/parameters/Cursor' }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items: { type: array, items: { $ref: '#/components/schemas/Exercise' } }
+                  next_cursor: { type: [string, "null"] }
+        '409':
+          description: Job not ready
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/Problem' }
+
+  /generation-jobs/{job_id}/blueprint:
+    get:
+      tags: [generation]
+      summary: Planner output (transparency into how the pool was designed)
+      parameters:
+        - { $ref: '#/components/parameters/TeacherId' }
+        - { name: job_id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  slots: { type: array, items: { $ref: '#/components/schemas/BlueprintSlot' } }
+
+  /generation-jobs/{job_id}/cancel:
+    post:
+      tags: [generation]
+      summary: Cancel a running job
+      parameters:
+        - { $ref: '#/components/parameters/TeacherId' }
+        - { name: job_id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: Cancelled
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/GenerationJob' }
+
+  /generation-jobs/{job_id}/extend:
+    post:
+      tags: [generation]
+      summary: Add more candidates to an existing pool
+      parameters:
+        - { $ref: '#/components/parameters/TeacherId' }
+        - { name: job_id, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                additional_count: { type: integer, minimum: 1, maximum: 30 }
+                type_code: { $ref: '#/components/schemas/ExerciseType' }
+                difficulty: { $ref: '#/components/schemas/Difficulty' }
+      responses:
+        '202':
+          description: Extension queued
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/GenerationJob' }
+
+  # ------------------------------------------------------------------- exercises
+  /exercises:
+    get:
+      tags: [exercises]
+      summary: Query the exercise bank
+      parameters:
+        - { $ref: '#/components/parameters/TeacherId' }
+        - { name: subject_code, in: query, schema: { type: string } }
+        - { name: year_level, in: query, schema: { type: integer } }
+        - { name: type_code, in: query, schema: { $ref: '#/components/schemas/ExerciseType' } }
+        - { name: difficulty, in: query, schema: { $ref: '#/components/schemas/Difficulty' } }
+        - { name: objective_id, in: query, schema: { type: string, format: uuid } }
+        - { name: node_id, in: query, schema: { type: string, format: uuid } }
+        - { name: tags, in: query, schema: { type: array, items: { type: string } } }
+        - { name: q, in: query, schema: { type: string } }
+        - { $ref: '#/components/parameters/Limit' }
+        - { $ref: '#/components/parameters/Cursor' }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items: { type: array, items: { $ref: '#/components/schemas/Exercise' } }
+                  next_cursor: { type: [string, "null"] }
+    post:
+      tags: [exercises]
+      summary: Create a teacher-authored exercise
+      parameters: [{ $ref: '#/components/parameters/TeacherId' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/Exercise' }
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Exercise' }
+
+  /exercises/{exercise_id}:
+    get:
+      tags: [exercises]
+      summary: Exercise detail with citations and validation verdict
+      parameters:
+        - { $ref: '#/components/parameters/TeacherId' }
+        - { name: exercise_id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Exercise' }
+    patch:
+      tags: [exercises]
+      summary: Edit an exercise (creates a new immutable version)
+      parameters:
+        - { $ref: '#/components/parameters/TeacherId' }
+        - { $ref: '#/components/parameters/IfMatch' }
+        - { name: exercise_id, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ExercisePatch' }
+      responses:
+        '200':
+          description: New version created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Exercise' }
+        '409': { $ref: '#/components/responses/Problem' }
+    delete:
+      tags: [exercises]
+      summary: Archive an exercise
+      parameters:
+        - { $ref: '#/components/parameters/TeacherId' }
+        - { name: exercise_id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '204': { description: Archived }
+
+  /exercises/{exercise_id}/versions:
+    get:
+      tags: [exercises]
+      summary: Version history
+      parameters:
+        - { $ref: '#/components/parameters/TeacherId' }
+        - { name: exercise_id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { type: array, items: { type: object } }
+
+  /exercises/{exercise_id}/regenerate:
+    post:
+      tags: [exercises]
+      summary: Regenerate this exercise, keeping its blueprint intent
+      parameters:
+        - { $ref: '#/components/parameters/TeacherId' }
+        - { name: exercise_id, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                instruction: { type: string, maxLength: 300, description: "e.g. 'make it easier', 'use a different context'" }
+                keep_type: { type: boolean, default: true }
+                keep_difficulty: { type: boolean, default: true }
+      responses:
+        '202':
+          description: Regeneration queued
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Exercise' }
+
+  /exercises/{exercise_id}/variants:
+    post:
+      tags: [exercises]
+      summary: Generate variants (Form B / anti-cheat, differentiation)
+      parameters:
+        - { $ref: '#/components/parameters/TeacherId' }
+        - { name: exercise_id, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                count: { type: integer, minimum: 1, maximum: 5, default: 1 }
+                mode: { type: string, enum: [surface_variation, difficulty_shift], default: surface_variation }
+      responses:
+        '202':
+          description: Variants queued
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: '#/components/schemas/Exercise' } }
+
+  /exercises/{exercise_id}/feedback:
+    post:
+      tags: [exercises]
+      summary: Rate or flag an exercise (drives quality metrics)
+      parameters:
+        - { $ref: '#/components/parameters/TeacherId' }
+        - { name: exercise_id, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                rating: { type: integer, minimum: 1, maximum: 5 }
+                flag: { type: string, enum: [wrong_answer, off_syllabus, too_hard, too_easy, unclear, inappropriate] }
+                comment: { type: string }
+      responses:
+        '201': { description: Recorded }
+
+  /exercises/{exercise_id}/image:
+    post:
+      tags: [assets]
+      summary: Request or replace the illustration for an exercise
+      parameters:
+        - { $ref: '#/components/parameters/TeacherId' }
+        - { name: exercise_id, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ImageRequest' }
+      responses:
+        '202':
+          description: Image generation queued
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Asset' }
+
+  # ----------------------------------------------------------------------- exams
+  /exams:
+    get:
+      tags: [exams]
+      summary: List exams
+      parameters:
+        - { $ref: '#/components/parameters/TeacherId' }
+        - { $ref: '#/components/parameters/Limit' }
+        - { $ref: '#/components/parameters/Cursor' }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items: { type: array, items: { $ref: '#/components/schemas/Exam' } }
+                  next_cursor: { type: [string, "null"] }
+    post:
+      tags: [exams]
+      summary: Create an exam, optionally seeded from a generation job
+      parameters:
+        - { $ref: '#/components/parameters/TeacherId' }
+        - { $ref: '#/components/parameters/IdempotencyKey' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ExamCreate' }
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Exam' }
+
+  /exams/{exam_id}:
+    get:
+      tags: [exams]
+      summary: Full assembled exam
+      parameters:
+        - { $ref: '#/components/parameters/TeacherId' }
+        - { name: exam_id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Exam' }
+        '404': { $ref: '#/components/responses/Problem' }
+    patch:
+      tags: [exams]
+      summary: Update exam header/layout
+      parameters:
+        - { $ref: '#/components/parameters/TeacherId' }
+        - { $ref: '#/components/parameters/IfMatch' }
+        - { name: exam_id, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ExamCreate' }
+      responses:
+        '200':
+          description: Updated
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Exam' }
+        '409': { $ref: '#/components/responses/Problem' }
+    delete:
+      tags: [exams]
+      summary: Archive an exam
+      parameters:
+        - { $ref: '#/components/parameters/TeacherId' }
+        - { name: exam_id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '204': { description: Archived }
+
+  /exams/{exam_id}/items:
+    post:
+      tags: [exams]
+      summary: Add exercise version(s) to the paper
+      parameters:
+        - { $ref: '#/components/parameters/TeacherId' }
+        - { name: exam_id, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                exercise_version_ids:
+                  type: array
+                  items: { type: string, format: uuid }
+                section_id: { type: [string, "null"], format: uuid }
+                position: { type: [integer, "null"] }
+              required: [exercise_version_ids]
+      responses:
+        '201':
+          description: Items added
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: '#/components/schemas/ExamItem' } }
+
+  /exams/{exam_id}/items/order:
+    put:
+      tags: [exams]
+      summary: Reorder items; server recomputes display numbering
+      parameters:
+        - { $ref: '#/components/parameters/TeacherId' }
+        - { name: exam_id, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                item_ids: { type: array, items: { type: string, format: uuid } }
+              required: [item_ids]
+      responses:
+        '200':
+          description: Reordered
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: '#/components/schemas/ExamItem' } }
+
+  /exams/{exam_id}/items/{item_id}:
+    patch:
+      tags: [exams]
+      summary: Override marks / inline-edit content for this exam only
+      parameters:
+        - { $ref: '#/components/parameters/TeacherId' }
+        - { name: exam_id, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: item_id, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                marks_override: { type: [number, "null"] }
+                content_override: { type: [object, "null"] }
+                section_id: { type: [string, "null"], format: uuid }
+                page_break_before: { type: boolean }
+      responses:
+        '200':
+          description: Updated
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ExamItem' }
+    delete:
+      tags: [exams]
+      summary: Remove an item from the paper
+      parameters:
+        - { $ref: '#/components/parameters/TeacherId' }
+        - { name: exam_id, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: item_id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '204': { description: Removed }
+
+  /exams/{exam_id}/sections:
+    post:
+      tags: [exams]
+      summary: Create a titled section
+      parameters:
+        - { $ref: '#/components/parameters/TeacherId' }
+        - { name: exam_id, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                title: { type: string }
+                instructions: { type: string }
+                ordinal: { type: integer }
+              required: [title]
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema: { type: object }
+
+  /exams/{exam_id}/preview:
+    get:
+      tags: [exams]
+      summary: Print-faithful server-rendered preview
+      parameters:
+        - { $ref: '#/components/parameters/TeacherId' }
+        - { name: exam_id, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: format, in: query, schema: { type: string, enum: [html, json], default: html } }
+        - { name: include_answer_key, in: query, schema: { type: boolean, default: false } }
+      responses:
+        '200':
+          description: OK
+          content:
+            text/html:
+              schema: { type: string }
+            application/json:
+              schema: { type: object }
+
+  /exams/{exam_id}/coverage:
+    get:
+      tags: [exams]
+      summary: Objective coverage and balance report
+      parameters:
+        - { $ref: '#/components/parameters/TeacherId' }
+        - { name: exam_id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ExamCoverage' }
+
+  /exams/{exam_id}/duplicate:
+    post:
+      tags: [exams]
+      summary: Clone an exam for another class or term
+      parameters:
+        - { $ref: '#/components/parameters/TeacherId' }
+        - { name: exam_id, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                title: { type: string }
+                class_label: { type: string }
+      responses:
+        '201':
+          description: Cloned
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Exam' }
+
+  # --------------------------------------------------------------------- exports
+  /exams/{exam_id}/exports:
+    post:
+      tags: [exports]
+      summary: Export the paper and answer key
+      parameters:
+        - { $ref: '#/components/parameters/TeacherId' }
+        - { $ref: '#/components/parameters/IdempotencyKey' }
+        - { name: exam_id, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ExportCreate' }
+      responses:
+        '202':
+          description: Export queued
+          headers:
+            Location: { schema: { type: string } }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ExportJob' }
+        '422':
+          description: Exam empty or invalid
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/Problem' }
+
+  /exports/{export_id}:
+    get:
+      tags: [exports]
+      summary: Export status and signed download URLs
+      parameters:
+        - { $ref: '#/components/parameters/TeacherId' }
+        - { name: export_id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ExportJob' }
+
+  /exports/{export_id}/download:
+    get:
+      tags: [exports]
+      summary: Redirect to a signed artefact URL
+      parameters:
+        - { $ref: '#/components/parameters/TeacherId' }
+        - { name: export_id, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: artifact, in: query, schema: { type: string, enum: [paper, answer_key], default: paper } }
+      responses:
+        '302':
+          description: Redirect to signed URL
+          headers:
+            Location: { schema: { type: string } }
+
+  # ---------------------------------------------------------------------- assets
+  /assets/{asset_id}:
+    get:
+      tags: [assets]
+      summary: Asset metadata and status
+      parameters:
+        - { $ref: '#/components/parameters/TeacherId' }
+        - { name: asset_id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Asset' }
+
+  /assets/{asset_id}/regenerate:
+    post:
+      tags: [assets]
+      summary: Re-run image generation with a tweaked spec
+      parameters:
+        - { $ref: '#/components/parameters/TeacherId' }
+        - { name: asset_id, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                spec_overrides: { type: object }
+      responses:
+        '202':
+          description: Queued
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Asset' }
+
+  /assets/uploads:
+    post:
+      tags: [assets]
+      summary: Upload a teacher-provided image
+      parameters: [{ $ref: '#/components/parameters/TeacherId' }]
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file: { type: string, format: binary }
+                alt_text: { type: string }
+              required: [file]
+      responses:
+        '201':
+          description: Uploaded
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Asset' }
+
+  # ----------------------------------------------------------------------- admin
+  /admin/books:
+    post:
+      tags: [admin]
+      summary: Ingest an official ministry textbook
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file: { type: string, format: binary }
+                framework_id: { type: string, format: uuid }
+                subject_code: { type: string }
+                year_level: { type: integer, minimum: 1, maximum: 6 }
+                edition: { type: string }
+                language: { type: string }
+              required: [file, subject_code, year_level]
+      responses:
+        '202':
+          description: Ingestion queued
+          content:
+            application/json:
+              schema: { type: object }
+
+  /admin/ingestion-jobs/{job_id}:
+    get:
+      tags: [admin]
+      summary: Ingestion progress
+      parameters:
+        - { name: job_id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { type: object }
+
+  /admin/ingestion-jobs/{job_id}/review:
+    get:
+      tags: [admin]
+      summary: Proposed curriculum tree vs source pages (review gate)
+      parameters:
+        - { name: job_id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { type: object }
+
+  /admin/ingestion-jobs/{job_id}/approve:
+    post:
+      tags: [admin]
+      summary: Approve and publish ingested curriculum
+      description: The human gate. Nothing becomes retrievable until this passes.
+      parameters:
+        - { name: job_id, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                corrections: { type: array, items: { type: object } }
+      responses:
+        '200':
+          description: Published
+          content:
+            application/json:
+              schema: { type: object }
+
+  /admin/nodes/{node_id}:
+    patch:
+      tags: [admin]
+      summary: Correct a mis-parsed curriculum node
+      parameters:
+        - { name: node_id, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object }
+      responses:
+        '200':
+          description: Updated
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CurriculumNode' }
+
+  /admin/prompts:
+    get:
+      tags: [admin]
+      summary: List prompt templates and versions
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { type: array, items: { type: object } }
+
+  /admin/prompts/{name}/versions/{version}/activate:
+    post:
+      tags: [admin]
+      summary: Activate a prompt version (no deploy required)
+      parameters:
+        - { name: name, in: path, required: true, schema: { type: string } }
+        - { name: version, in: path, required: true, schema: { type: integer } }
+      responses:
+        '200':
+          description: Activated
+          content:
+            application/json:
+              schema: { type: object }
+
+  /admin/metrics/quality:
+    get:
+      tags: [admin]
+      summary: Accept rate, edit rate and flags by prompt version
+      parameters:
+        - { name: since, in: query, schema: { type: string, format: date } }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { type: object }
+
+  # -------------------------------------------------------------------- webhooks
+  /webhooks/image/{provider}:
+    post:
+      tags: [assets]
+      summary: Async image provider callback (HMAC-signed, idempotent)
+      parameters:
+        - { name: provider, in: path, required: true, schema: { type: string } }
+        - { name: X-Signature, in: header, required: true, schema: { type: string } }
+        - { name: X-Timestamp, in: header, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object }
+      responses:
+        '200': { description: Acknowledged }
+        '401': { $ref: '#/components/responses/Problem' }
+
+  # ---------------------------------------------------------------------- system
+  /health:
+    get:
+      tags: [system]
+      summary: Liveness
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { type: object }
+
+  /health/ready:
+    get:
+      tags: [system]
+      summary: Readiness (DB, Redis, MCP server, AI providers)
+      responses:
+        '200':
+          description: Ready
+          content:
+            application/json:
+              schema: { type: object }
+        '503': { $ref: '#/components/responses/Problem' }
+
+  /version:
+    get:
+      tags: [system]
+      summary: Build and schema version
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { type: object }
